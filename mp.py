@@ -34,13 +34,24 @@ class Handler:
             except Exception as E:
                 print(E)
 
+        ## Counts and interval
+        if args.count is None:
+            args.count = 15
+        else:
+            args.count = int(args.count)
+        if args.inter is None:
+            args.inter = 3
+        else:
+            args.inter = float(args.inter)
+
         ## Generate bitmap math
         bList = [b'\x00\x01\x00']
         self.bStr = bytes()
-        for i in range(1):
+        for i in range(252):
             bList.append(b'\xff')
         for b in bList:
             self.bStr += b
+
 
     def bitmapBuilder(self, pkt):
         """Handles filling out the bitmap
@@ -64,6 +75,7 @@ class Handler:
 
 
     def sniffQueue(self):
+        """Sets up the queue for sniffing"""
         self.q = Queue()
         sniffer = Thread(target = self.snarf, args = (self.q,))
         sniffer.daemon = True
@@ -93,11 +105,7 @@ class Handler:
                         if x.addr1 == x.addr3:
                             if x.subtype == 12:
                                 if self.dsDict.get(x.addr3) is not None:
-                                    essid = self.dsDict.get(x.addr3)[0].decode()
-                                    print('polo   -',
-                                          x.addr3,
-                                          essid,
-                                          x.addr2, x.dBm_AntSignal)
+                                    print(f'polo   - {x.addr3:17} {self.dsDict.get(x.addr3)[0].decode():31} {x.addr2} {x.dBm_AntSignal}')
                                 # print(x.time)
 
                 ## Queue warnings
@@ -134,8 +142,6 @@ class Handler:
                 if pkt.addr3 != 'ff:ff:ff:ff:ff:ff':
                     if self.dsDict.get(pkt.addr3) is None:
                         topElt = pkt.getlayer(Dot11Elt)
-                        essid = None
-                        tbl = None
                         foo = None
                         bar = None
                         while topElt:
@@ -153,14 +159,12 @@ class Handler:
                         ## Update dsDict with marco
                         m = RadioTap(pkt.build())
                         self.dsDict.update({pkt.addr3: (essid, m)})
-                        print('marco  -',
-                              pkt.addr3, self.dsDict.get(pkt.addr3)[0].decode(),
-                              pkt.dBm_AntSignal)
+                        print(f'marco  - {pkt.addr3:17} {self.dsDict.get(pkt.addr3)[0].decode():31} {pkt.dBm_AntSignal:>21}')
                         # print(pkt.time)
 
                         ### Hardcode cycle for polo
-                        sendp(m, iface = self.args.i, count = 15,
-                              inter = 3, verbose = False)
+                        sendp(m, iface = self.args.i, count = self.args.count,
+                              inter = self.args.inter, verbose = False)
                         print(f'polo   - ~~~~~~~~~~~~~~~ > {self.dsDict.get(pkt.addr3)[0].decode()}')
         except Exception as E:
             print(E)
@@ -178,6 +182,8 @@ if __name__ == '__main__':
     parser.add_argument('-m', help = 'Monitor NIC',
                         metavar = '<mon nic>', required = True)
     parser.add_argument('-t', help = 'Number of threads [Default is 40]')
+    parser.add_argument('--count', help = 'Number of injected frames [Default is 15]')
+    parser.add_argument('--inter', help = 'Interval between injected frames [Default is 3]')
     args = parser.parse_args()
     hnd = Handler(args)
 
