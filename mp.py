@@ -1,7 +1,27 @@
 #!/usr/bin/python3
 
 import argparse
+import threading
+from queue import Queue
 from scapy.all import *
+
+class Backgrounder(object):
+    """Setup and hold the backgrounded thread using easy-thread techniques"""
+    def __init__(self, theThread = None):
+        if theThread is not None:
+            self.theThread = theThread
+
+
+    def easyLaunch(self, args = None):
+        """Kick off the thread"""
+        if args is not None:
+            self.thread = threading.Thread(target = self.theThread, args = args)
+        else:
+            self.thread = threading.Thread(target = self.theThread)
+        self.thread.daemon = True
+        self.thread.start()
+
+
 
 class Handler:
     __slots__ = ('args',
@@ -171,7 +191,12 @@ class Handler:
 
 
 def main(hnd):
-    hnd.sniffQueue()
+    if hnd.args.ide is True:
+        Backgrounder.theThread = hnd.sniffQueue
+        bg = Backgrounder()
+        bg.easyLaunch()
+    else:
+        hnd.sniffQueue()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = 'Marco.... Polo!')
@@ -183,9 +208,8 @@ if __name__ == '__main__':
                         metavar = '<mon nic>', required = True)
     parser.add_argument('-t', help = 'Number of threads [Default is 40]')
     parser.add_argument('--count', help = 'Number of injected frames [Default is 15]')
+    parser.add_argument('--ide', help = 'IPython mode', action = 'store_true')
     parser.add_argument('--inter', help = 'Interval between injected frames [Default is 3]')
     args = parser.parse_args()
     hnd = Handler(args)
-
-    ### Need to background this so we can query dsDict and fire on demand
     main(hnd)
