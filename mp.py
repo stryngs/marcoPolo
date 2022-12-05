@@ -2,6 +2,7 @@
 
 import argparse
 import threading
+import time
 from queue import Queue
 from scapy.all import *
 
@@ -27,11 +28,13 @@ class Handler:
     __slots__ = ('args',
                  'bStr',
                  'dsDict',
-                 'q')
+                 'q',
+                 'verbose')
 
     def __init__(self, args):
         self.args = args
         self.dsDict = {}
+        self.verbose = True
 
         ### Hardcode on queue logs
         args.infoLevel = 100
@@ -125,7 +128,8 @@ class Handler:
                         if x.addr1 == x.addr3:
                             if x.subtype == 12:
                                 if self.dsDict.get(x.addr3) is not None:
-                                    print(f'polo   - {x.addr3:17} {self.dsDict.get(x.addr3)[0].decode():31} {x.addr2} {x.dBm_AntSignal}')
+                                    if self.verbose is True:
+                                        print(f'polo  - {x.addr2:17} {self.dsDict.get(x.addr3)[0].decode():20} {x.addr3} {x.dBm_AntSignal:4} {x.time}')
                                 # print(x.time)
 
                 ## Queue warnings
@@ -179,13 +183,14 @@ class Handler:
                         ## Update dsDict with marco
                         m = RadioTap(pkt.build())
                         self.dsDict.update({pkt.addr3: (essid, m)})
-                        print(f'marco  - {pkt.addr3:17} {self.dsDict.get(pkt.addr3)[0].decode():31} {pkt.dBm_AntSignal:>21}')
-                        # print(pkt.time)
+                        if self.verbose is True:
+                            print(f'marco - {pkt.addr3:17} {self.dsDict.get(pkt.addr3)[0].decode():20} ff:ff:ff:ff:ff:ff {pkt.dBm_AntSignal:4} {pkt.time}')
 
                         ### Hardcode cycle for polo
                         sendp(m, iface = self.args.i, count = self.args.count,
                               inter = self.args.inter, verbose = False)
-                        print(f'polo   - ~~~~~~~~~~~~~~~ > {self.dsDict.get(pkt.addr3)[0].decode()}')
+                        if self.verbose is True:
+                            print(f'polo   - ~~~~~~~~~~~~~~~ > {self.dsDict.get(pkt.addr3)[0].decode()}')
         except Exception as E:
             print(E)
 
@@ -194,7 +199,14 @@ def main(hnd):
     if hnd.args.ide is True:
         Backgrounder.theThread = hnd.sniffQueue
         bg = Backgrounder()
+
+        print('hnd.verbose set to False will turn off stdout, to reverse set to True.')
+        print('hnd.dsDict contains a set of keys based on the BSSID.  The items in the dictionary represent the essid and the forged frame.')
+        print('An example usage would be:')
+        print("  sendp(hnd.dsDict.get('ff:ff:ff:ff:ff:ff')[1], iface = 'wlan1mon')\n")
+        input('To launch, press enter')
         bg.easyLaunch()
+
     else:
         hnd.sniffQueue()
 
